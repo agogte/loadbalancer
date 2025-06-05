@@ -1,4 +1,3 @@
-````markdown
 # Load Balancer with Express.js
 
 This project demonstrates a simple load balancer implemented using Node.js and Express. It includes a load balancer that can distribute requests to multiple backend servers using either round-robin or random selection strategies.
