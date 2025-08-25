@@ -1,4 +1,4 @@
-# Load Balancer with Express.js
+# Smart API Gateway with Express.js
 
 This project demonstrates a simple load balancer implemented using Node.js and Express. The load balancer distributes incoming requests to multiple backend servers using either round-robin or random selection strategies. It also includes a basic rate limiter to prevent abuse.
 
@@ -8,9 +8,9 @@ This project demonstrates a simple load balancer implemented using Node.js and E
 
 ## Project Structure
 
-- `loadbalancer.js`: Main load balancer server. Proxies requests to backend servers using a load balancing algorithm and applies rate limiting.
+- `Api.js`: Main load balancer server. Proxies requests to backend servers using a load balancing algorithm and applies rate limiting.
 - `server.js`: Spawns multiple backend servers for testing.
-- `loadbalancing-algorithms.js`: Contains the round-robin and random load balancing middleware.
+- `loadbalancing-algorithms.js`: Contains the `LoadBalancerBuilder` class and `LoadBalancerAlgorithm` enum for flexible load balancing.
 - `rate-limiter.js`: Implements a simple in-memory rate limiter middleware.
 
 ---
@@ -47,7 +47,7 @@ This will start servers on ports 3000, 3001, and 3002.
 ### 2. Start the Load Balancer
 
 ```bash
-node loadbalancer.js <startPort> <serverCount>
+node Api.js <startPort> <serverCount>
 ```
 
 - `startPort`: Must match the `startPort` used when starting the servers (default: `4012`)
@@ -56,7 +56,7 @@ node loadbalancer.js <startPort> <serverCount>
 Example:
 
 ```bash
-node loadbalancer.js 3000 3
+node Api.js 3000 3
 ```
 
 This will proxy incoming requests to servers on ports 3000, 3001, and 3002.
@@ -77,21 +77,26 @@ This will route the request to one of the backend servers using the **round-robi
 
 ### Load Balancing Strategies
 
+The load balancer uses the `LoadBalancerBuilder` class and `LoadBalancerAlgorithm` enum to configure its behavior.
+
 - **Round Robin (Default):**  
   Cycles through the list of servers sequentially for each request.
 
 - **Random:**  
   Selects a server randomly for each request.
 
-To switch strategies, update the following line in `loadbalancer.js`:
+To switch strategies, update the following lines in `Api.js`:
 
 ```js
-// For round robin (default)
-app.get("/", rateLimiter, roundRobinLoadBalancer(servers));
+const { LoadBalancerBuilder, LoadBalancerAlgorithm } = require("./loadbalancing-algorithms");
 
-// For random (uncomment and comment out the above)
-const { randomLoadBalancer } = require("./loadbalancing-algorithms");
-app.get("/", rateLimiter, randomLoadBalancer(servers));
+const loadbalancer = new LoadBalancerBuilder()
+  .setServers(servers)
+  .setStrategy(LoadBalancerAlgorithm.ROUND_ROBIN) // or LoadBalancerAlgorithm.RANDOM
+  .setLogging(true)
+  .build();
+
+app.get("/", rateLimiter(), loadbalancer);
 ```
 
 ### Rate Limiting
