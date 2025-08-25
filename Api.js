@@ -1,5 +1,5 @@
 const express = require("express");
-const { roundRobinLoadBalancer } = require("./loadbalancing-algorithms");
+const { LoadBalancerBuilder, LoadBalancerAlgorithm } = require("./loadbalancing-algorithms");
 const { rateLimiter } = require("./rate-limiter");
 
 const app = express();
@@ -14,8 +14,14 @@ const servers = Array.from(
 );
 console.log("Available servers: ", servers);
 
+const loadbalancer = new LoadBalancerBuilder()
+                        .setServers(servers)
+                        .setStrategy(LoadBalancerAlgorithm.ROUND_ROBIN)
+                        .setLogging(true)
+                        .build();
+
 // Apply rate limiter middleware before the load balancer
-app.get("/", rateLimiter, roundRobinLoadBalancer(servers));
+app.get("/", rateLimiter(), loadbalancer);
 
 const port = 5001;
 const server = app.listen(port, () => {
