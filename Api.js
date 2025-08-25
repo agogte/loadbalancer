@@ -21,7 +21,6 @@ const loadbalancer = new LoadBalancerBuilder()
 // Apply rate limiter middleware before the load balancer
 app.get("/", rateLimiter(), loadbalancer);
 
-
 const server = app.listen(port, () => {
   console.log(`Load balancer running on http://localhost:${port}`);
 });
