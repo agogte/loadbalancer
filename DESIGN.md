@@ -96,7 +96,31 @@ The same reasoning applies to other stateful data in the gateway:
 
 ---
 
-## 4. Why proxy (not redirect) as the core architecture
+## 4. Consistent hash ring for client-sticky routing
+
+### The problem with round robin and random for stateful backends
+
+Round robin and random both ignore the client entirely — the same client can land on a different backend on every request. That's fine when backends are stateless, but it breaks down the moment a backend holds per-client state in memory (an in-process cache, a session, a WebSocket upgrade): every request that lands on the "wrong" backend is a cache miss or a dropped session.
+
+### Why not just hash `clientIp % serverCount`?
+
+A naive modulo hash gives the same stickiness, but it has a scaling failure mode: adding or removing a single backend changes `serverCount`, which changes the modulo result for almost every client. Effectively the entire client population gets reshuffled across backends at once — exactly when you're scaling (the moment you can least afford a cache stampede).
+
+### How the ring fixes this
+
+Each backend is hashed (MD5) onto 100 points ("virtual nodes") around a fixed circular keyspace. A client is hashed onto the same keyspace, and we walk clockwise to the nearest backend node. Adding or removing one backend only remaps the slice of the ring owned by that backend's virtual nodes — roughly `1/serverCount` of clients — not the whole ring. This is the standard trade-off consistent hashing makes: a little uneven load distribution (mitigated by the 100 virtual nodes per server) in exchange for minimal remapping on topology change.
+
+### Why client IP as the hash key
+
+`req.ip` is what's available without requiring clients to send a session token, and it's stable for the lifetime of a TCP connection, which is enough to keep a given client on one backend across requests. The trade-off: clients behind a shared NAT or corporate proxy hash identically and pile onto the same backend. If that matters, switch the key to a session/auth token instead of IP — the ring logic doesn't care what the key represents.
+
+### When to use this vs round robin/random
+
+Use consistent hashing only when backend state actually depends on the client landing on the same server. For genuinely stateless backends, round robin's even distribution and simplicity win — the ring adds complexity (virtual nodes, MD5 hashing, ring rebuilds on `setServers`) that buys nothing if there's no state to be sticky about.
+
+---
+
+## 5. Why proxy (not redirect) as the core architecture
 
 Using `http-proxy` instead of redirect-based load balancing has three systemic advantages:
 

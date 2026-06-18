@@ -1,6 +1,6 @@
 # Smart API Gateway with Express.js
 
-This project demonstrates a simple load balancer implemented using Node.js and Express. The load balancer distributes incoming requests to multiple backend servers using either round-robin or random selection strategies. It also includes a rate limiter with two algorithm options: sliding window and token bucket.
+This project demonstrates a simple load balancer implemented using Node.js and Express. The load balancer distributes incoming requests to multiple backend servers using round-robin, random, or consistent hash ring selection strategies. It also includes a rate limiter with two algorithm options: sliding window and token bucket.
 
 ![Load Balancer Diagram](loadbalancer-diagram.png)
 
@@ -87,6 +87,9 @@ The load balancer uses the `LoadBalancerBuilder` class and `LoadBalancerAlgorith
 - **Random:**  
   Selects a server randomly for each request.
 
+- **Consistent Hash:**  
+  Hashes the client IP onto a hash ring and routes it to the server owning the nearest point on the ring. Each server is placed at 100 virtual node positions to keep the distribution even. The same client IP always maps to the same server as long as the server list doesn't change, which makes this useful for sticky routing (e.g. in-memory caches or session affinity) without needing a session store.
+
 To switch strategies, update the following lines in `Api.js`:
 
 ```js
@@ -97,7 +100,7 @@ const {
 
 const loadbalancer = new LoadBalancerBuilder()
   .setServers(servers)
-  .setStrategy(LoadBalancerAlgorithm.ROUND_ROBIN) // or LoadBalancerAlgorithm.RANDOM
+  .setStrategy(LoadBalancerAlgorithm.ROUND_ROBIN) // or RANDOM, CONSISTENT_HASH
   .setLogging(true)
   .build();
 
