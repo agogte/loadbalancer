@@ -1,6 +1,6 @@
 const express = require("express");
 const { LoadBalancerBuilder, LoadBalancerAlgorithm } = require("./loadbalancing-algorithms");
-const { rateLimiter } = require("./rate-limiter");
+const { rateLimiter, RateLimiterAlgorithm } = require("./rate-limiter");
 const { startPort, serverCount, port } = require("./config");
 
 const app = express();
@@ -19,7 +19,7 @@ const loadbalancer = new LoadBalancerBuilder()
                         .build();
 
 // Apply rate limiter middleware before the load balancer
-app.get("/", rateLimiter(), loadbalancer);
+app.get("/", rateLimiter(5, 60 * 1000, RateLimiterAlgorithm.TOKEN_BUCKET), loadbalancer);
 
 const server = app.listen(port, () => {
   console.log(`Load balancer running on http://localhost:${port}`);
