@@ -1,6 +1,6 @@
 # Smart API Gateway with Express.js
 
-This project demonstrates a simple load balancer implemented using Node.js and Express. The load balancer distributes incoming requests to multiple backend servers using either round-robin or random selection strategies. It also includes a basic rate limiter to prevent abuse.
+This project demonstrates a simple load balancer implemented using Node.js and Express. The load balancer distributes incoming requests to multiple backend servers using either round-robin or random selection strategies. It also includes a rate limiter with two algorithm options: sliding window and token bucket.
 
 ![Load Balancer Diagram](loadbalancer-diagram.png)
 
@@ -11,16 +11,18 @@ This project demonstrates a simple load balancer implemented using Node.js and E
 - `Api.js`: Main load balancer server. Proxies requests to backend servers using a load balancing algorithm and applies rate limiting.
 - `server.js`: Spawns multiple backend servers for testing.
 - `loadbalancing-algorithms.js`: Contains the `LoadBalancerBuilder` class and `LoadBalancerAlgorithm` enum for flexible load balancing.
-- `rate-limiter.js`: Implements a simple in-memory rate limiter middleware.
+- `rate-limiter.js`: Implements in-memory rate limiting middleware with sliding window and token bucket algorithms.
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
+
 - Node.js (v14+ recommended)
 
 ### Installation
+
 No installation is required. Simply run the scripts with Node.js.
 
 ---
@@ -88,7 +90,10 @@ The load balancer uses the `LoadBalancerBuilder` class and `LoadBalancerAlgorith
 To switch strategies, update the following lines in `Api.js`:
 
 ```js
-const { LoadBalancerBuilder, LoadBalancerAlgorithm } = require("./loadbalancing-algorithms");
+const {
+  LoadBalancerBuilder,
+  LoadBalancerAlgorithm,
+} = require("./loadbalancing-algorithms");
 
 const loadbalancer = new LoadBalancerBuilder()
   .setServers(servers)
@@ -96,13 +101,51 @@ const loadbalancer = new LoadBalancerBuilder()
   .setLogging(true)
   .build();
 
-app.get("/", rateLimiter(), loadbalancer);
+app.get(
+  "/",
+  rateLimiter(5, 60 * 1000, RateLimiterAlgorithm.TOKEN_BUCKET),
+  loadbalancer,
+);
 ```
 
 ### Rate Limiting
 
-- Each client IP is limited to 5 requests per minute.
-- If the limit is exceeded, the client receives a `429 Too Many Requests` response.
+Each client IP is limited to a configurable number of requests per time window. Exceeding the limit returns a `429 Too Many Requests` response with a `retryAfter` value.
+
+Two algorithms are available via `RateLimiterAlgorithm`:
+
+- **Sliding Window (default):**  
+  Tracks the exact timestamps of recent requests in a rolling window. A request is rejected if the number of requests in the last `windowSize` ms is at or above `rateLimit`.
+
+- **Token Bucket:**  
+  Each IP gets a bucket that starts full (`rateLimit` tokens) and refills continuously at a rate of `rateLimit / windowSize` tokens per ms. Each request consumes one token. Requests are rejected when the bucket is empty, and clients are told how long to wait until a token is available again. This allows short bursts up to the bucket capacity while smoothing out sustained traffic.
+
+To switch algorithms, update the `rateLimiter` call in `Api.js`:
+
+```js
+const { rateLimiter, RateLimiterAlgorithm } = require("./rate-limiter");
+
+// Sliding window (default)
+app.get(
+  "/",
+  rateLimiter(5, 60 * 1000, RateLimiterAlgorithm.SLIDING_WINDOW),
+  loadbalancer,
+);
+
+// Token bucket
+app.get(
+  "/",
+  rateLimiter(5, 60 * 1000, RateLimiterAlgorithm.TOKEN_BUCKET),
+  loadbalancer,
+);
+```
+
+Parameters:
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `rateLimit` | `5` | Max requests (or bucket capacity for token bucket) |
+| `windowSize` | `60000` | Time window in ms |
+| `algorithm` | `SLIDING_WINDOW` | `RateLimiterAlgorithm.SLIDING_WINDOW` or `TOKEN_BUCKET` |
 
 ---
 
